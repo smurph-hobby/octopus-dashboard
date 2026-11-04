@@ -3,34 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Agile Octopus Dashboard</title>
 
 <style>
+
 body{
     margin:0;
-    font-family:Arial,sans-serif;
     background:#121212;
     color:white;
-    text-align:center;
+    font-family:Arial,sans-serif;
     padding:20px;
+    text-align:center;
 }
 
 h1{
-    margin-bottom:20px;
+    font-size:2.2rem;
+    margin-bottom:25px;
 }
 
 .card{
     background:#1e1e1e;
-    border-radius:16px;
-    padding:20px;
-    margin:15px auto;
-    max-width:400px;
-    box-shadow:0 0 10px rgba(0,0,0,0.3);
+    border-radius:20px;
+    padding:25px;
+    margin:20px auto;
+    max-width:500px;
+    box-shadow:0 0 15px rgba(0,0,0,0.35);
+}
+
+.card h2{
+    margin-top:0;
+    color:#cccccc;
 }
 
 .value{
-    font-size:2rem;
+    font-size:3rem;
     font-weight:bold;
+    margin-top:10px;
 }
 
 .green{
@@ -45,11 +54,23 @@ h1{
     color:#F44336;
 }
 
-.updated{
-    margin-top:20px;
-    color:#999;
-    font-size:0.9rem;
+.period-price{
+    font-size:2rem;
+    font-weight:bold;
+    margin-bottom:10px;
 }
+
+.period-time{
+    font-size:1.2rem;
+    color:#bbbbbb;
+}
+
+.updated{
+    margin-top:25px;
+    color:#999999;
+    font-size:0.85rem;
+}
+
 </style>
 </head>
 
@@ -68,13 +89,13 @@ h1{
 </div>
 
 <div class="card">
-    <h2>Cheapest Period</h2>
-    <div id="cheap">Loading...</div>
+    <h2>Cheapest Next 24 Hours</h2>
+    <div id="cheap"></div>
 </div>
 
 <div class="card">
-    <h2>Most Expensive Period</h2>
-    <div id="high">Loading...</div>
+    <h2>Most Expensive Next 24 Hours</h2>
+    <div id="high"></div>
 </div>
 
 <div class="updated" id="updated"></div>
@@ -84,10 +105,42 @@ h1{
 const api =
 "https://octopusapi-dvaddkaqd3g2aqhj.ukwest-01.azurewebsites.net/api/agile-pricing";
 
-function colour(price){
-    if(price < 10) return "green";
-    if(price < 20) return "orange";
+function getColour(price){
+
+    if(price < 10){
+        return "green";
+    }
+
+    if(price < 20){
+        return "orange";
+    }
+
     return "red";
+}
+
+function formatTime(dateString){
+
+    return new Date(dateString).toLocaleTimeString(
+        [],
+        {
+            hour: "2-digit",
+            minute: "2-digit"
+        }
+    );
+}
+
+function buildPeriodHtml(period){
+
+    return `
+        <div class="period-price">
+            ${period.price.toFixed(2)} p/kWh
+        </div>
+        <div class="period-time">
+            ${formatTime(period.from)}
+            -
+            ${formatTime(period.to)}
+        </div>
+    `;
 }
 
 async function loadData(){
@@ -97,29 +150,53 @@ async function loadData(){
         const response = await fetch(api);
         const data = await response.json();
 
-        const current = document.getElementById("current");
-        current.textContent = `${data.current} p/kWh`;
-        current.className = `value ${colour(data.current)}`;
+        const currentElement =
+            document.getElementById("current");
 
-        const next = document.getElementById("next");
-        next.textContent = `${data.next} p/kWh`;
-        next.className = `value ${colour(data.next)}`;
+        currentElement.textContent =
+            `${data.current.toFixed(2)} p/kWh`;
+
+        currentElement.className =
+            `value ${getColour(data.current)}`;
+
+
+        const nextElement =
+            document.getElementById("next");
+
+        nextElement.textContent =
+            `${data.next.toFixed(2)} p/kWh`;
+
+        nextElement.className =
+            `value ${getColour(data.next)}`;
+
 
         document.getElementById("cheap").innerHTML =
-            `${data.cheapest.price} p/kWh<br>${new Date(data.cheapest.time).toLocaleString()}`;
+            buildPeriodHtml(data.cheapest);
 
         document.getElementById("high").innerHTML =
-            `${data.highest.price} p/kWh<br>${new Date(data.highest.time).toLocaleString()}`;
+            buildPeriodHtml(data.highest);
+
 
         document.getElementById("updated").textContent =
-            "Last updated: " + new Date().toLocaleTimeString();
+            `Last updated: ${new Date().toLocaleString()}`;
 
-    } catch(err){
+    }
 
-        document.body.innerHTML +=
-            "<p style='color:red'>Unable to load pricing.</p>";
+    catch(error){
 
-        console.error(err);
+        console.error(error);
+
+        document.getElementById("current").innerHTML =
+            "Unable to load pricing";
+
+        document.getElementById("next").innerHTML =
+            "-";
+
+        document.getElementById("cheap").innerHTML =
+            "-";
+
+        document.getElementById("high").innerHTML =
+            "-";
     }
 }
 
