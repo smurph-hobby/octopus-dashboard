@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agile Octopus Dashboard</title>
+
+<style>
+body{
+    margin:0;
+    font-family:Arial,sans-serif;
+    background:#121212;
+    color:white;
+    text-align:center;
+    padding:20px;
+}
+
+h1{
+    margin-bottom:20px;
+}
+
+.card{
+    background:#1e1e1e;
+    border-radius:16px;
+    padding:20px;
+    margin:15px auto;
+    max-width:400px;
+    box-shadow:0 0 10px rgba(0,0,0,0.3);
+}
+
+.value{
+    font-size:2rem;
+    font-weight:bold;
+}
+
+.green{
+    color:#4CAF50;
+}
+
+.orange{
+    color:#FFC107;
+}
+
+.red{
+    color:#F44336;
+}
+
+.updated{
+    margin-top:20px;
+    color:#999;
+    font-size:0.9rem;
+}
+</style>
+</head>
+
+<body>
+
+<h1>⚡ Agile Octopus</h1>
+
+<div class="card">
+    <h2>Current Price</h2>
+    <div id="current" class="value">Loading...</div>
+</div>
+
+<div class="card">
+    <h2>Next Price</h2>
+    <div id="next" class="value">Loading...</div>
+</div>
+
+<div class="card">
+    <h2>Cheapest Period</h2>
+    <div id="cheap">Loading...</div>
+</div>
+
+<div class="card">
+    <h2>Most Expensive Period</h2>
+    <div id="high">Loading...</div>
+</div>
+
+<div class="updated" id="updated"></div>
+
+<script>
+
+const api =
+"https://octopusapi-dvaddkaqd3g2aqhj.ukwest-01.azurewebsites.net/api/agile-pricing";
+
+function colour(price){
+    if(price < 10) return "green";
+    if(price < 20) return "orange";
+    return "red";
+}
+
+async function loadData(){
+
+    try{
+
+        const response = await fetch(api);
+        const data = await response.json();
+
+        const current = document.getElementById("current");
+        current.textContent = `${data.current} p/kWh`;
+        current.className = `value ${colour(data.current)}`;
+
+        const next = document.getElementById("next");
+        next.textContent = `${data.next} p/kWh`;
+        next.className = `value ${colour(data.next)}`;
+
+        document.getElementById("cheap").innerHTML =
+            `${data.cheapest.price} p/kWh<br>${new Date(data.cheapest.time).toLocaleString()}`;
+
+        document.getElementById("high").innerHTML =
+            `${data.highest.price} p/kWh<br>${new Date(data.highest.time).toLocaleString()}`;
+
+        document.getElementById("updated").textContent =
+            "Last updated: " + new Date().toLocaleTimeString();
+
+    } catch(err){
+
+        document.body.innerHTML +=
+            "<p style='color:red'>Unable to load pricing.</p>";
+
+        console.error(err);
+    }
+}
+
+loadData();
+
+setInterval(loadData, 300000);
+
+</script>
+
+</body>
+</html>
