@@ -181,7 +181,7 @@ canvas{
 </div>
 
 <div class="card">
-    <h2>Potential Saving</h2>
+    <h2>Run Cost Comparison</h2>
     <div id="saving"></div>
 </div>
 
@@ -298,81 +298,108 @@ function buildRecommendation(){
     const now =
         new Date();
 
-    const today =
-        now.toDateString();
-
-    const recommendationDay =
-        start.toDateString();
-
-    const when =
-        today === recommendationDay
-            ? formatTime(window.from)
-            : `Tomorrow ${formatTime(window.from)}`;
+const when =
+    new Date(window.from)
+    .toLocaleString(
+        [],
+        {
+            weekday: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+        }
+    );
 
     const hoursUntil =
         (start - now) /
         (1000 * 60 * 60);
 
-    const difference =
-        ((current - window.average)
-        / window.average) * 100;
+let applianceKwh;
 
-    let text;
-    let colour;
-    let subtitle;
+if(selectedMode === "wm"){
 
-    if(
-        now >= start &&
-        now <= new Date(window.to)
-    ){
-
-        text = "🟢 Run Now";
-
-        colour = "#4CAF50";
-
-        subtitle =
-            "You are currently within the recommended window";
-    }
-    else if(hoursUntil > 2){
-
-        text = "🟠 Wait";
-
-        colour = "#FFC107";
-
-        subtitle =
-            `Best time starts ${when}`;
-    }
-    else if(difference > 5){
-
-        text = "🟠 Wait";
-
-        colour = "#FFC107";
-
-        subtitle =
-            `Save money from ${when}`;
-    }
-    else{
-
-        text = "🟢 Run Now";
-
-        colour = "#4CAF50";
-
-        subtitle =
-            "Current price is close to the optimal window";
-    }
-
-    return `
-        <div
-            class="indicator"
-            style="color:${colour}">
-            ${text}
-        </div>
-
-        <div class="indicator-small">
-            ${subtitle}
-        </div>
-    `;
+    applianceKwh =
+        dashboardData.appliances
+            .washingMachineKwh;
 }
+else if(selectedMode === "dryer"){
+
+    applianceKwh =
+        dashboardData.appliances
+            .dryerKwh;
+}
+else{
+
+    applianceKwh =
+        dashboardData.appliances
+            .washDryKwh;
+}
+
+const cycleSaving =
+    Math.max(
+        0,
+        (
+            current -
+            window.average
+        ) *
+        applianceKwh
+    );
+
+let text;
+let colour;
+let subtitle;
+
+if(
+    now >= start &&
+    now <= new Date(window.to)
+){
+
+    text = "🟢 Run Now";
+
+    colour = "#4CAF50";
+
+    subtitle =
+        "You are currently within the recommended window";
+}
+else if(cycleSaving <= 5){
+
+    text = "🟢 Run Now";
+
+    colour = "#4CAF50";
+
+    subtitle =
+        "Potential saving is minimal";
+}
+else if(hoursUntil > 2){
+
+    text = "🟠 Wait";
+
+    colour = "#FFC107";
+
+    subtitle =
+        `Best time starts ${when} and could save approximately ${cycleSaving.toFixed(1)}p`;
+}
+else{
+
+    text = "🟠 Wait";
+
+    colour = "#FFC107";
+
+    subtitle =
+        `Save approximately ${cycleSaving.toFixed(1)}p from ${when}`;
+}
+
+return `
+    <div
+        class="indicator"
+        style="color:${colour}">
+        ${text}
+    </div>
+    <div class="indicator-small">
+        ${subtitle}
+    </div>
+`;
+}
+
 const shadingPlugin = {
 
     id:'shadingPlugin',
@@ -583,11 +610,14 @@ function renderChart(){
                 win.to
         );
 
-    if(chart.highlightEnd === -1){
+const slotCount =
+    selectedMode === "laundry"
+        ? 4
+        : 2;
 
-        chart.highlightEnd =
-            chart.highlightStart + 2;
-    }
+chart.highlightEnd =
+    chart.highlightStart +
+    slotCount;
 
     chart.update();
 }
@@ -642,107 +672,202 @@ function updateDisplay(){
         .innerHTML =
         buildRecommendation();
 
-    const saving =
-        (
-            dashboardData.current -
-            currentWindow().average
-        ).toFixed(2);
+   let applianceKwh;
+let applianceName;
 
-    document
-        .getElementById(
-            "saving"
-        )
-        .innerHTML = `
-        <div class="period-price">
-            ${saving} p/kWh
-        </div>
+if(selectedMode === "wm"){
 
-        <div class="period-time">
-            Saving versus running now
-        </div>
-    `;
+    applianceKwh =
+        dashboardData.appliances
+            .washingMachineKwh;
+
+    applianceName =
+        "Washing Machine";
+}
+else if(selectedMode === "dryer"){
+
+    applianceKwh =
+        dashboardData.appliances
+            .dryerKwh;
+
+    applianceName =
+        "Tumble Dryer";
+}
+else{
+
+    applianceKwh =
+        dashboardData.appliances
+            .washDryKwh;
+
+    applianceName =
+        "Wash + Dry";
+}
+
+const currentCost =
+    (
+        dashboardData.current *
+        applianceKwh
+    ) / 100;
+
+const recommendedCost =
+    (
+        currentWindow().average *
+        applianceKwh
+    ) / 100;
+
+const saving =
+    Math.max(
+        0,
+        currentCost -
+        recommendedCost
+    );
+
+const savingColour =
+    saving > 0
+    ? "#4CAF50"
+    : "#FFC107";
+
+const savingText =
+    saving > 0
+    ? `${(saving*100).toFixed(0)}p`
+    : "0p";
+
+document
+    .getElementById(
+        "saving"
+    )
+    .innerHTML = `
+
+    <div class="period-price">
+
+        £${currentCost.toFixed(2)}
+
+        →
+
+        £${recommendedCost.toFixed(2)}
+
+    </div>
+
+    <div class="period-time">
+
+        ${applianceName}
+
+    </div>
+
+    <div
+        class="period-time"
+        style="color:${savingColour};font-weight:bold;"
+    >
+
+        Saving:
+        ${savingText}
+
+    </div>
+
+`;
 
     renderChart();
 }
 
 async function loadData(){
 
-    const response =
-        await fetch(api);
+    try{
 
-    dashboardData =
-        await response.json();
+        const response =
+            await fetch(api);
 
-    document
-        .getElementById(
-            "current"
-        )
-        .textContent =
-        `${dashboardData.current.toFixed(2)} p/kWh`;
+        if(!response.ok){
+            throw new Error(
+                "Unable to retrieve pricing"
+            );
+        }
 
-    document
-        .getElementById(
-            "current"
-        )
-        .className =
-        `value ${colour(dashboardData.current)}`;
+        dashboardData =
+            await response.json();
 
-    document
-        .getElementById(
-            "currentTime"
-        )
-        .textContent =
-        `${formatTime(dashboardData.current_from)} - ${formatTime(dashboardData.current_to)}`;
+        document
+    .getElementById(
+        "current"
+    )
+    .textContent =
+    `${dashboardData.current.toFixed(2)} p/kWh`;
 
-    document
-        .getElementById(
-            "next"
-        )
-        .textContent =
-        `${dashboardData.next.toFixed(2)} p/kWh`;
+document
+    .getElementById(
+        "current"
+    )
+    .className =
+    `value ${colour(dashboardData.current)}`;
 
-    document
-        .getElementById(
-            "next"
-        )
-        .className =
-        `value ${colour(dashboardData.next)}`;
+document
+    .getElementById(
+        "currentTime"
+    )
+    .textContent =
+    `${formatTime(dashboardData.current_from)} - ${formatTime(dashboardData.current_to)}`;
 
-    document
-        .getElementById(
-            "nextTime"
-        )
-        .textContent =
-        `${formatTime(dashboardData.next_from)} - ${formatTime(dashboardData.next_to)}`;
+document
+    .getElementById(
+        "next"
+    )
+    .textContent =
+    `${dashboardData.next.toFixed(2)} p/kWh`;
 
-    document
-        .getElementById(
-            "cheap"
-        )
-        .innerHTML =
-        periodHtml(
-            dashboardData.cheapest
-        );
+document
+    .getElementById(
+        "next"
+    )
+    .className =
+    `value ${colour(dashboardData.next)}`;
 
-    document
-        .getElementById(
-            "high"
-        )
-        .innerHTML =
-        periodHtml(
-            dashboardData.highest
-        );
+document
+    .getElementById(
+        "nextTime"
+    )
+    .textContent =
+    `${formatTime(dashboardData.next_from)} - ${formatTime(dashboardData.next_to)}`;
 
-    document
-        .getElementById(
-            "updated"
-        )
-        .textContent =
-        "Last updated: "
-        + new Date()
-        .toLocaleString();
+document
+    .getElementById(
+        "cheap"
+    )
+    .innerHTML =
+    periodHtml(
+        dashboardData.cheapest
+    );
 
-    updateDisplay();
+document
+    .getElementById(
+        "high"
+    )
+    .innerHTML =
+    periodHtml(
+        dashboardData.highest
+    );
+
+document
+    .getElementById(
+        "updated"
+    )
+    .textContent =
+    "Last updated: "
+    + new Date()
+    .toLocaleString();
+
+updateDisplay();
+
+    }
+    catch(error){
+
+        console.error(error);
+
+        document
+            .getElementById(
+                "current"
+            )
+            .textContent =
+            "Data unavailable";
+    }
 }
 
 loadData();
