@@ -292,6 +292,27 @@ function buildRecommendation(){
     const current =
         dashboardData.current;
 
+    const start =
+        new Date(window.from);
+
+    const now =
+        new Date();
+
+    const today =
+        now.toDateString();
+
+    const recommendationDay =
+        start.toDateString();
+
+    const when =
+        today === recommendationDay
+            ? formatTime(window.from)
+            : `Tomorrow ${formatTime(window.from)}`;
+
+    const hoursUntil =
+        (start - now) /
+        (1000 * 60 * 60);
+
     const difference =
         ((current - window.average)
         / window.average) * 100;
@@ -300,30 +321,44 @@ function buildRecommendation(){
     let colour;
     let subtitle;
 
-    if(difference <= 10){
+    if(
+        now >= start &&
+        now <= new Date(window.to)
+    ){
 
         text = "🟢 Run Now";
+
         colour = "#4CAF50";
 
         subtitle =
-            "Current price is close to the optimal time";
-
+            "You are currently within the recommended window";
     }
-    else if(difference <= 25){
+    else if(hoursUntil > 2){
 
         text = "🟠 Wait";
+
         colour = "#FFC107";
 
         subtitle =
-            `Cheaper from ${formatTime(window.from)}`;
+            `Best time starts ${when}`;
+    }
+    else if(difference > 5){
+
+        text = "🟠 Wait";
+
+        colour = "#FFC107";
+
+        subtitle =
+            `Save money from ${when}`;
     }
     else{
 
-        text = "🔴 Avoid";
-        colour = "#F44336";
+        text = "🟢 Run Now";
+
+        colour = "#4CAF50";
 
         subtitle =
-            `Wait until ${formatTime(window.from)} to save money`;
+            "Current price is close to the optimal window";
     }
 
     return `
@@ -338,7 +373,6 @@ function buildRecommendation(){
         </div>
     `;
 }
-
 const shadingPlugin = {
 
     id:'shadingPlugin',
