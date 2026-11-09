@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>Agile Octopus Dashboard</title>
 
@@ -12,36 +12,45 @@
 
 body{
     margin:0;
+    padding:20px;
+    font-family:Arial,sans-serif;
     background:#121212;
     color:white;
-    font-family:Arial,sans-serif;
-    padding:20px;
     text-align:center;
 }
 
 h1{
-    font-size:2rem;
-    margin-bottom:25px;
+    margin-bottom:20px;
 }
 
 .card{
     background:#1e1e1e;
     border-radius:20px;
-    padding:25px;
-    margin:20px auto;
-    max-width:900px;
-    box-shadow:0 0 15px rgba(0,0,0,0.35);
-}
-
-.card h2{
-    margin-top:0;
-    color:#cccccc;
+    padding:20px;
+    margin:15px auto;
+    max-width:1000px;
+    box-shadow:0 0 12px rgba(0,0,0,.4);
 }
 
 .value{
-    font-size:3rem;
+    font-size:2.8rem;
     font-weight:bold;
-    margin-top:10px;
+}
+
+.subtext{
+    color:#bbbbbb;
+    font-size:1rem;
+    margin-top:5px;
+}
+
+.period-price{
+    font-size:2rem;
+    font-weight:bold;
+}
+
+.period-time{
+    font-size:1.1rem;
+    color:#bbbbbb;
 }
 
 .green{
@@ -56,66 +65,90 @@ h1{
     color:#F44336;
 }
 
-.period-price{
+.indicator{
     font-size:2rem;
     font-weight:bold;
-    margin-bottom:10px;
 }
 
-.period-time{
-    font-size:1.2rem;
+.indicator-small{
     color:#bbbbbb;
-}
-
-.updated{
-    margin-top:25px;
-    color:#999999;
-    font-size:0.85rem;
+    margin-top:10px;
 }
 
 canvas{
     width:100% !important;
-    height:350px !important;
+    height:420px !important;
+}
+
+.legend{
+    color:#bbbbbb;
+    margin-top:10px;
+}
+
+.updated{
+    color:#999999;
+    margin-top:20px;
+    font-size:0.85rem;
 }
 
 </style>
 </head>
-
 <body>
 
 <h1>⚡ Agile Octopus</h1>
 
 <div class="card">
     <h2>Current Price</h2>
-    <div id="current" class="value">Loading...</div>
+    <div id="current" class="value"></div>
+    <div id="currentTime" class="subtext"></div>
 </div>
 
 <div class="card">
     <h2>Next Price</h2>
-    <div id="next" class="value">Loading...</div>
+    <div id="next" class="value"></div>
+    <div id="nextTime" class="subtext"></div>
 </div>
 
 <div class="card">
-    <h2>Best Laundry Window (2 Hours)</h2>
-    <div id="laundry">Loading...</div>
+    <h2>Laundry Recommendation</h2>
+    <div id="runIndicator"></div>
+</div>
+
+<div class="card">
+    <h2>Best Laundry Window (Next 30 Hours)</h2>
+    <div id="laundry"></div>
 </div>
 
 <div class="card">
     <h2>Cheapest Next 24 Hours</h2>
-    <div id="cheap">Loading...</div>
+    <div id="cheap"></div>
 </div>
 
 <div class="card">
     <h2>Most Expensive Next 24 Hours</h2>
-    <div id="high">Loading...</div>
+    <div id="high"></div>
 </div>
 
 <div class="card">
-    <h2>30 Hour Agile Forecast</h2>
-    <canvas id="priceChart"></canvas>
+    <h2>Savings Opportunity</h2>
+    <div id="savings"></div>
 </div>
 
-<div class="updated" id="updated"></div>
+<div class="card">
+
+    <h2>30 Hour Agile Forecast</h2>
+
+    <canvas id="priceChart"></canvas>
+
+    <div class="legend">
+        🟦 Tomorrow |
+        🟩 Laundry Window |
+        │ Midnight
+    </div>
+
+</div>
+
+<div id="updated" class="updated"></div>
 
 <script>
 
@@ -124,224 +157,29 @@ const api =
 
 let chart;
 
-function getColour(price){
-
-    if(price < 10) return "green";
-    if(price < 25) return "orange";
-    return "red";
-}
-
 function formatTime(dateString){
 
     return new Date(dateString)
         .toLocaleTimeString(
             [],
             {
-                hour:"2-digit",
-                minute:"2-digit"
+                hour:'2-digit',
+                minute:'2-digit'
             }
         );
 }
 
-function buildPeriodHtml(period){
+function getColour(price){
 
-    return `
-        <div class="period-price">
-            ${period.price.toFixed(2)} p/kWh
-        </div>
-
-        <div class="period-time">
-            ${formatTime(period.from)}
-            -
-            ${formatTime(period.to)}
-        </div>
-    `;
-}
-
-function buildLaundryHtml(window){
-
-    return `
-        <div class="period-price">
-            ${window.average.toFixed(2)} p/kWh
-        </div>
-
-        <div class="period-time">
-            ${formatTime(window.from)}
-            -
-            ${formatTime(window.to)}
-        </div>
-    `;
-}
-
-function renderChart(graph){
-
-    const labels = graph.map(point => {
-
-        const d = new Date(point.time);
-
-        return d.toLocaleTimeString(
-            [],
-            {
-                hour:"2-digit",
-                minute:"2-digit"
-            }
-        );
-    });
-
-    const values =
-        graph.map(point => point.price);
-
-    const ctx =
-        document.getElementById("priceChart");
-
-    if(chart){
-        chart.destroy();
+    if(price < 10){
+        return "green";
     }
 
-    chart = new Chart(ctx, {
+    if(price < 25){
+        return "orange";
+    }
 
-        type: "line",
-
-        data: {
-
-            labels: labels,
-
-            datasets: [{
-                label: "Agile Rate (p/kWh)",
-                data: values,
-
-                borderColor: "#4FC3F7",
-                backgroundColor: "rgba(79,195,247,0.15)",
-
-                fill: true,
-
-                tension: 0.25,
-
-                pointRadius: 3,
-                pointHoverRadius: 6
-            }]
-        },
-
-        options: {
-
-            responsive: true,
-
-            maintainAspectRatio: false,
-
-            plugins: {
-
-                legend: {
-                    labels: {
-                        color: "white"
-                    }
-                }
-            },
-
-            scales: {
-
-                x: {
-
-                    ticks: {
-                        color: "#cccccc",
-                        maxTicksLimit: 12
-                    },
-
-                    grid: {
-                        color: "#333333"
-                    }
-                },
-
-                y: {
-
-                    beginAtZero: false,
-
-                    ticks: {
-                        color: "#cccccc"
-                    },
-
-                    grid: {
-                        color: "#333333"
-                    }
-                }
-            }
-        }
-    });
+    return "red";
 }
 
-async function loadData(){
-
-    try{
-
-        const response =
-            await fetch(api);
-
-        const data =
-            await response.json();
-
-        const current =
-            document.getElementById("current");
-
-        current.textContent =
-            `${data.current.toFixed(2)} p/kWh`;
-
-        current.className =
-            `value ${getColour(data.current)}`;
-
-
-        const next =
-            document.getElementById("next");
-
-        next.textContent =
-            `${data.next.toFixed(2)} p/kWh`;
-
-        next.className =
-            `value ${getColour(data.next)}`;
-
-
-        document.getElementById("cheap").innerHTML =
-            data.cheapest
-                ? buildPeriodHtml(data.cheapest)
-                : "Not available";
-
-
-        document.getElementById("high").innerHTML =
-            data.highest
-                ? buildPeriodHtml(data.highest)
-                : "Not available";
-
-
-        document.getElementById("laundry").innerHTML =
-            data.bestLaundryWindow
-                ? buildLaundryHtml(
-                      data.bestLaundryWindow
-                  )
-                : "Not available";
-
-
-        renderChart(data.graph);
-
-
-        document.getElementById("updated")
-            .textContent =
-            "Last updated: "
-            + new Date().toLocaleString();
-
-    }
-    catch(error){
-
-        console.error(error);
-
-        document.getElementById("current")
-            .innerText =
-            "Unable to load pricing";
-    }
-}
-
-loadData();
-
-setInterval(loadData, 300000);
-
-</script>
-
-</body>
-</html>
+function buildPeriod(period
