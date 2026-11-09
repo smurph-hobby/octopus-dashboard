@@ -39,7 +39,6 @@ h1{
 
 .subtext{
     color:#bbbbbb;
-    font-size:1rem;
     margin-top:5px;
 }
 
@@ -49,8 +48,8 @@ h1{
 }
 
 .period-time{
-    font-size:1.1rem;
     color:#bbbbbb;
+    margin-top:5px;
 }
 
 .green{
@@ -71,8 +70,29 @@ h1{
 }
 
 .indicator-small{
-    color:#bbbbbb;
     margin-top:10px;
+    color:#bbbbbb;
+}
+
+.mode-buttons{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+    flex-wrap:wrap;
+    margin-bottom:15px;
+}
+
+.mode-button{
+    padding:10px 15px;
+    border:none;
+    border-radius:10px;
+    background:#333;
+    color:white;
+    cursor:pointer;
+}
+
+.mode-button.active{
+    background:#4CAF50;
 }
 
 canvas{
@@ -86,7 +106,7 @@ canvas{
 }
 
 .updated{
-    color:#999999;
+    color:#999;
     margin-top:20px;
     font-size:0.85rem;
 }
@@ -110,14 +130,45 @@ canvas{
 </div>
 
 <div class="card">
-    <h2>Laundry Recommendation</h2>
-    <div id="runIndicator"></div>
+    <h2>Recommendation</h2>
+
+    <div class="mode-buttons">
+
+        <button
+            class="mode-button active"
+            onclick="changeMode('wm')"
+            id="btn-wm">
+            Washing Machine
+        </button>
+
+        <button
+            class="mode-button"
+            onclick="changeMode('dryer')"
+            id="btn-dryer">
+            Dryer
+        </button>
+
+        <button
+            class="mode-button"
+            onclick="changeMode('laundry')"
+            id="btn-laundry">
+            Wash + Dry
+        </button>
+
+    </div>
+
+    <div id="recommendation"></div>
 </div>
 
+
 <div class="card">
-    <h2>Best Laundry Window (Next 30 Hours)</h2>
-    <div id="laundry"></div>
+    <h2 id="windowTitle">
+        Best Washing Machine Window
+    </h2>
+
+    <div id="selectedWindow"></div>
 </div>
+
 
 <div class="card">
     <h2>Cheapest Next 24 Hours</h2>
@@ -130,25 +181,24 @@ canvas{
 </div>
 
 <div class="card">
-    <h2>Savings Opportunity</h2>
-    <div id="savings"></div>
+    <h2>Potential Saving</h2>
+    <div id="saving"></div>
 </div>
 
 <div class="card">
 
-    <h2>30 Hour Agile Forecast</h2>
+    <h2>30 Hour Forecast</h2>
 
     <canvas id="priceChart"></canvas>
 
     <div class="legend">
-        🟦 Tomorrow |
-        🟩 Laundry Window |
-        │ Midnight
+        🟦 Tomorrow &nbsp;&nbsp;
+        🟩 Selected Appliance Window
     </div>
 
 </div>
 
-<div id="updated" class="updated"></div>
+<div class="updated" id="updated"></div>
 
 <script>
 
@@ -156,10 +206,12 @@ const api =
 "https://octopusapi-dvaddkaqd3g2aqhj.ukwest-01.azurewebsites.net/api/agile-pricing";
 
 let chart;
+let dashboardData;
+let selectedMode = "wm";
 
-function formatTime(dateString){
+function formatTime(date){
 
-    return new Date(dateString)
+    return new Date(date)
         .toLocaleTimeString(
             [],
             {
@@ -169,17 +221,504 @@ function formatTime(dateString){
         );
 }
 
-function getColour(price){
+function colour(price){
 
-    if(price < 10){
+    if(price < 10)
         return "green";
-    }
 
-    if(price < 25){
+    if(price < 25)
         return "orange";
-    }
 
     return "red";
 }
 
-function buildPeriod(period
+function periodHtml(period){
+
+    return `
+        <div class="period-price">
+            ${period.price.toFixed(2)} p/kWh
+        </div>
+
+        <div class="period-time">
+            ${formatTime(period.from)}
+            -
+            ${formatTime(period.to)}
+        </div>
+    `;
+}
+
+function windowHtml(window){
+
+    return `
+        <div class="period-price">
+            ${window.average.toFixed(2)} p/kWh
+        </div>
+
+        <div class="period-time">
+            ${formatTime(window.from)}
+            -
+            ${formatTime(window.to)}
+        </div>
+    `;
+}
+
+function currentWindow(){
+
+    if(selectedMode === "wm")
+        return dashboardData.bestWashingMachineWindow;
+
+    if(selectedMode === "dryer")
+        return dashboardData.bestDryerWindow;
+
+    return dashboardData.bestLaundryWindow;
+}
+
+function currentTitle(){
+
+    if(selectedMode === "wm")
+        return "Best Washing Machine Window";
+
+    if(selectedMode === "dryer")
+        return "Best Dryer Window";
+
+    return "Best Wash + Dry Window";
+}
+
+function buildRecommendation(){
+
+    const window =
+        currentWindow();
+
+    const current =
+        dashboardData.current;
+
+    const difference =
+        ((current - window.average)
+        / window.average) * 100;
+
+    let text;
+    let colour;
+    let subtitle;
+
+    if(difference <= 10){
+
+        text = "🟢 Run Now";
+        colour = "#4CAF50";
+
+        subtitle =
+            "Current price is close to the optimal time";
+
+    }
+    else if(difference <= 25){
+
+        text = "🟠 Wait";
+        colour = "#FFC107";
+
+        subtitle =
+            `Cheaper from ${formatTime(window.from)}`;
+    }
+    else{
+
+        text = "🔴 Avoid";
+        colour = "#F44336";
+
+        subtitle =
+            `Wait until ${formatTime(window.from)} to save money`;
+    }
+
+    return `
+        <div
+            class="indicator"
+            style="color:${colour}">
+            ${text}
+        </div>
+
+        <div class="indicator-small">
+            ${subtitle}
+        </div>
+    `;
+}
+
+const shadingPlugin = {
+
+    id:'shadingPlugin',
+
+    beforeDraw(chart){
+
+        const {
+            ctx,
+            chartArea,
+            scales
+        } = chart;
+
+        if(!chartArea)
+            return;
+
+        ctx.save();
+
+        const dates =
+            chart.rawDates;
+
+        const tomorrow =
+            new Date();
+
+        tomorrow.setHours(
+            24,0,0,0
+        );
+
+        let midnightIdx = null;
+
+        dates.forEach((d,i)=>{
+
+            if(
+                midnightIdx === null &&
+                new Date(d) >= tomorrow
+            ){
+                midnightIdx = i;
+            }
+        });
+
+        if(midnightIdx !== null){
+
+            const x =
+                scales.x.getPixelForValue(
+                    midnightIdx
+                );
+
+            ctx.fillStyle =
+                "rgba(66,165,245,0.1)";
+
+            ctx.fillRect(
+                x,
+                chartArea.top,
+                chartArea.right - x,
+                chartArea.bottom-chartArea.top
+            );
+
+            ctx.strokeStyle =
+                "rgba(66,165,245,.8)";
+
+            ctx.beginPath();
+            ctx.moveTo(x, chartArea.top);
+            ctx.lineTo(x, chartArea.bottom);
+            ctx.stroke();
+        }
+
+        if(
+            chart.highlightStart !== undefined
+        ){
+
+            const s =
+                scales.x.getPixelForValue(
+                    chart.highlightStart
+                );
+
+            const e =
+                scales.x.getPixelForValue(
+                    chart.highlightEnd
+                );
+
+            ctx.fillStyle =
+                "rgba(76,175,80,0.25)";
+
+            ctx.fillRect(
+                s,
+                chartArea.top,
+                e-s,
+                chartArea.bottom-chartArea.top
+            );
+        }
+
+        ctx.restore();
+    }
+};
+
+function renderChart(){
+
+    const graph =
+        dashboardData.graph;
+
+    const labels =
+        graph.map(
+            x => formatTime(x.time)
+        );
+
+    const values =
+        graph.map(
+            x => x.price
+        );
+
+    const ctx =
+        document.getElementById(
+            "priceChart"
+        );
+
+    if(chart)
+        chart.destroy();
+
+    chart = new Chart(ctx, {
+
+        type:'line',
+
+        plugins:[
+            shadingPlugin
+        ],
+
+        data:{
+
+            labels,
+
+            datasets:[{
+
+                label:
+                    "Agile Price (p/kWh)",
+
+                data: values,
+
+                borderColor:"#4FC3F7",
+
+                backgroundColor:
+                    "rgba(79,195,247,0.15)",
+
+                fill:true,
+
+                tension:.25
+            }]
+        },
+
+        options:{
+
+            responsive:true,
+
+            maintainAspectRatio:false,
+
+            scales:{
+
+                x:{
+                    ticks:{
+                        color:"#ccc",
+                        maxTicksLimit:12
+                    },
+
+                    grid:{
+                        color:"#333"
+                    }
+                },
+
+                y:{
+                    ticks:{
+                        color:"#ccc"
+                    },
+
+                    grid:{
+                        color:"#333"
+                    }
+                }
+            },
+
+            plugins:{
+
+                legend:{
+                    labels:{
+                        color:"white"
+                    }
+                }
+            }
+        }
+    });
+
+    chart.rawDates =
+        graph.map(
+            p => p.time
+        );
+
+    const win =
+        currentWindow();
+
+    chart.highlightStart =
+        graph.findIndex(
+            p =>
+                p.time ===
+                win.from
+        );
+
+    chart.highlightEnd =
+        graph.findIndex(
+            p =>
+                p.time ===
+                win.to
+        );
+
+    if(chart.highlightEnd === -1){
+
+        chart.highlightEnd =
+            chart.highlightStart + 2;
+    }
+
+    chart.update();
+}
+
+function changeMode(mode){
+
+    selectedMode = mode;
+
+    document
+        .querySelectorAll(
+            '.mode-button'
+        )
+        .forEach(
+            b => b.classList.remove(
+                'active'
+            )
+        );
+
+    document
+        .getElementById(
+            `btn-${mode}`
+        )
+        .classList.add(
+            'active'
+        );
+
+    updateDisplay();
+}
+
+function updateDisplay(){
+
+    document
+        .getElementById(
+            "windowTitle"
+        )
+        .textContent =
+        currentTitle();
+
+    document
+        .getElementById(
+            "selectedWindow"
+        )
+        .innerHTML =
+        windowHtml(
+            currentWindow()
+        );
+
+    document
+        .getElementById(
+            "recommendation"
+        )
+        .innerHTML =
+        buildRecommendation();
+
+    const saving =
+        (
+            dashboardData.current -
+            currentWindow().average
+        ).toFixed(2);
+
+    document
+        .getElementById(
+            "saving"
+        )
+        .innerHTML = `
+        <div class="period-price">
+            ${saving} p/kWh
+        </div>
+
+        <div class="period-time">
+            Saving versus running now
+        </div>
+    `;
+
+    renderChart();
+}
+
+async function loadData(){
+
+    const response =
+        await fetch(api);
+
+    dashboardData =
+        await response.json();
+
+    document
+        .getElementById(
+            "current"
+        )
+        .textContent =
+        `${dashboardData.current.toFixed(2)} p/kWh`;
+
+    document
+        .getElementById(
+            "current"
+        )
+        .className =
+        `value ${colour(dashboardData.current)}`;
+
+    document
+        .getElementById(
+            "currentTime"
+        )
+        .textContent =
+        `${formatTime(dashboardData.current_from)} - ${formatTime(dashboardData.current_to)}`;
+
+    document
+        .getElementById(
+            "next"
+        )
+        .textContent =
+        `${dashboardData.next.toFixed(2)} p/kWh`;
+
+    document
+        .getElementById(
+            "next"
+        )
+        .className =
+        `value ${colour(dashboardData.next)}`;
+
+    document
+        .getElementById(
+            "nextTime"
+        )
+        .textContent =
+        `${formatTime(dashboardData.next_from)} - ${formatTime(dashboardData.next_to)}`;
+
+    document
+        .getElementById(
+            "cheap"
+        )
+        .innerHTML =
+        periodHtml(
+            dashboardData.cheapest
+        );
+
+    document
+        .getElementById(
+            "high"
+        )
+        .innerHTML =
+        periodHtml(
+            dashboardData.highest
+        );
+
+    document
+        .getElementById(
+            "updated"
+        )
+        .textContent =
+        "Last updated: "
+        + new Date()
+        .toLocaleString();
+
+    updateDisplay();
+}
+
+loadData();
+
+setInterval(
+    loadData,
+    300000
+);
+
+</script>
+
+</body>
+</html>
